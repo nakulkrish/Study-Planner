@@ -21,9 +21,9 @@ app = FastAPI(title="Study Planner AI Backend")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Local development
-        "https://*.vercel.app",   # Vercel deployment
-        "https://study-planner-sable-gamma.vercel.app/",
+        "http://localhost:3000",
+        "https://study-planner-sable-gamma.vercel.app",  
+        "https://*.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
