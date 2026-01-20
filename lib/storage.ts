@@ -13,6 +13,7 @@ const KEYS = {
   AVAILABLE_HOURS: 'study_planner_available_hours',
   FIXED_COMMITMENTS: 'study_planner_fixed_commitments',
   LAST_ASSESSMENT: 'study_planner_last_assessment',
+  COMPLETED_TASKS: 'study_planner_completed_tasks',
   ONBOARDING_COMPLETE: 'study_planner_onboarding_complete',
 };
 
@@ -82,6 +83,24 @@ export const assessmentStorage = {
   set: (assessment: BurnoutAssessment) => 
     setItem(KEYS.LAST_ASSESSMENT, assessment),
   clear: () => removeItem(KEYS.LAST_ASSESSMENT),
+};
+
+// Completed tasks storage (keyed by date)
+export const completedTasksStorage = {
+  get: (date: string): string[] => getItem<string[]>(`${KEYS.COMPLETED_TASKS}_${date}`) || [],
+  set: (date: string, tasks: string[]) => setItem(`${KEYS.COMPLETED_TASKS}_${date}`, tasks),
+  add: (date: string, taskId: string) => {
+    const tasks = completedTasksStorage.get(date);
+    if (!tasks.includes(taskId)) {
+      tasks.push(taskId);
+      completedTasksStorage.set(date, tasks);
+    }
+  },
+  remove: (date: string, taskId: string) => {
+    const tasks = completedTasksStorage.get(date).filter(id => id !== taskId);
+    completedTasksStorage.set(date, tasks);
+  },
+  clear: (date: string) => removeItem(`${KEYS.COMPLETED_TASKS}_${date}`),
 };
 
 // Onboarding status

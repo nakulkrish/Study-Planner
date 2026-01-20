@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Calendar, Clock, BookOpen, AlertTriangle, LogOut } from 'lucide-react';
 import { adjustPlanForBurnout } from '@/lib/api';
-import { planStorage, subjectStorage, onboardingStorage, assessmentStorage, moodStorage, clearAllData } from '@/lib/storage';
+import { planStorage, subjectStorage, onboardingStorage, assessmentStorage, moodStorage, completedTasksStorage, clearAllData } from '@/lib/storage';
 import type { WeeklyPlan, DailyTask } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [burnoutAssessment, setBurnoutAssessment] = useState<any>(null);
   const [adjusting, setAdjusting] = useState(false);
+  const [completedTasks, setCompletedTasks] = useState<string[]>([]);
 
   useEffect(() => {
     // Check if onboarding complete
@@ -42,6 +43,9 @@ export default function DashboardPage() {
     // Load latest burnout assessment
     const assessment = assessmentStorage.get();
     setBurnoutAssessment(assessment);
+
+    // Load completed tasks for today
+    setCompletedTasks(completedTasksStorage.get(today));
 
     setLoading(false);
   }, [router]);
@@ -118,6 +122,17 @@ export default function DashboardPage() {
     }
   };
 
+  const handleTaskToggle = (taskId: string) => {
+    const today = new Date().toISOString().split('T')[0];
+    if (completedTasks.includes(taskId)) {
+      completedTasksStorage.remove(today, taskId);
+      setCompletedTasks(prev => prev.filter(id => id !== taskId));
+    } else {
+      completedTasksStorage.add(today, taskId);
+      setCompletedTasks(prev => [...prev, taskId]);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -148,13 +163,22 @@ export default function DashboardPage() {
   const moodHistory = moodStorage.get();
   const startOfWeek = new Date(plan.days[0].date); // Assuming plan.days[0] is the start
   const endOfWeek = new Date(plan.days[plan.days.length - 1].date);
-  const completedHours = moodHistory
+  const checkinHours = moodHistory
     .filter(entry => {
       const entryDate = new Date(entry.date);
       return entryDate >= startOfWeek && entryDate <= endOfWeek;
     })
     .reduce((sum, entry) => sum + entry.actual_hours, 0);
 
+  // Add task-based progress (estimate hours from completed tasks)
+  const taskCompletionHours = plan.days.reduce((sum, day) => {
+    const dayCompleted = completedTasksStorage.get(day.date);
+    return sum + day.tasks
+      .filter(task => dayCompleted.includes(`${task.subject}-${task.topic}`))
+      .reduce((taskSum, task) => taskSum + task.duration_hours, 0);
+  }, 0);
+
+  const completedHours = checkinHours + taskCompletionHours; // Combine both
   const progressPercent = totalHoursThisWeek > 0 ? Math.min((completedHours / totalHoursThisWeek) * 100, 100) : 0;
 
   return (
@@ -352,38 +376,58 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="space-y-4">
-              {todaysPlan.tasks.map((task: DailyTask, index: number) => (
-                <div
-                  key={index}
-                  className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors"
-                >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h4 className="font-semibold text-xl">{task.subject}</h4>
-                      <p className="text-gray-600">{task.topic}</p>
+              {todaysPlan.tasks.map((task: DailyTask, index: number) => {
+                const taskId = `${task.subject}-${task.topic}`;
+                const isCompleted = completedTasks.includes(taskId);
+                return (
+                  <div
+                    key={index}
+                    className={`border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors ${
+                      isCompleted ? 'opacity-60 bg-gray-50' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={isCompleted}
+                          onChange={() => handleTaskToggle(taskId)}
+                          className="mr-3 w-5 h-5"
+                        />
+                        <div>
+                          <h4 className={`font-semibold text-xl ${isCompleted ? 'line-through' : ''}`}>
+                            {task.subject}
+                          </h4>
+                          <p className={`text-gray-600 ${isCompleted ? 'line-through' : ''}`}>
+                            {task.topic}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        task.priority === 'High' ? 'bg-red-100 text-red-700' :
+                        task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-green-100 text-green-700'
+                      }`}>
+                        {task.priority}
+                      </span>
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      task.priority === 'High' ? 'bg-red-100 text-red-700' :
-                      task.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-green-100 text-green-700'
-                    }`}>
-                      {task.priority}
-                    </span>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span className="flex items-center">
+                        <Clock className="w-4 h-4 mr-1" />
+                        {task.duration_hours}h
+                      </span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                        {task.task_type}
+                      </span>
+                    </div>
+                    {task.notes && (
+                      <p className={`text-sm text-gray-500 mt-2 italic ${isCompleted ? 'line-through' : ''}`}>
+                        {task.notes}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-gray-600">
-                    <span className="flex items-center">
-                      <Clock className="w-4 h-4 mr-1" />
-                      {task.duration_hours}h
-                    </span>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded">
-                      {task.task_type}
-                    </span>
-                  </div>
-                  {task.notes && (
-                    <p className="text-sm text-gray-500 mt-2 italic">{task.notes}</p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
