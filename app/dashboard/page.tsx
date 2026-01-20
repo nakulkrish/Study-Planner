@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Calendar, Clock, BookOpen, AlertTriangle, LogOut } from 'lucide-react';
 import { adjustPlanForBurnout } from '@/lib/api';
-import { planStorage, subjectStorage, onboardingStorage, assessmentStorage, clearAllData } from '@/lib/storage';
+import { planStorage, subjectStorage, onboardingStorage, assessmentStorage, moodStorage, clearAllData } from '@/lib/storage';
 import type { WeeklyPlan, DailyTask } from '@/lib/types';
 
 export default function DashboardPage() {
@@ -143,8 +143,19 @@ export default function DashboardPage() {
   }
 
   const totalHoursThisWeek = plan.days.reduce((sum, day) => sum + day.total_hours, 0);
-  const completedHours = 0; // TODO: Track from check-ins
-  const progressPercent = (completedHours / totalHoursThisWeek) * 100;
+
+  // Calculate completed hours from check-ins (sum actual_hours for this week)
+  const moodHistory = moodStorage.get();
+  const startOfWeek = new Date(plan.days[0].date); // Assuming plan.days[0] is the start
+  const endOfWeek = new Date(plan.days[plan.days.length - 1].date);
+  const completedHours = moodHistory
+    .filter(entry => {
+      const entryDate = new Date(entry.date);
+      return entryDate >= startOfWeek && entryDate <= endOfWeek;
+    })
+    .reduce((sum, entry) => sum + entry.actual_hours, 0);
+
+  const progressPercent = totalHoursThisWeek > 0 ? Math.min((completedHours / totalHoursThisWeek) * 100, 100) : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 py-8">
@@ -152,7 +163,7 @@ export default function DashboardPage() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-4xl font-bold mb-2">Your Study Dashboard</h1>
+            <h1 className="text-5xl font-bold mb-4">Your Study Dashboard</h1>
             <p className="text-gray-600">Week {plan.week_number}</p>
           </div>
           <div className="flex gap-3">
@@ -210,7 +221,12 @@ export default function DashboardPage() {
                     onClick={handleAdjustPlan}
                     disabled={adjusting}
                   >
-                    {adjusting ? 'Adjusting...' : 'Adjust Plan'}
+                    {adjusting ? (
+                      <>
+                        <div className="animate-spin h-4 w-4 mr-2 border border-current border-t-transparent rounded-full" />
+                        Adjusting...
+                      </>
+                    ) : 'Adjust Plan'}
                   </Button>
                 )}
               </div>
@@ -339,11 +355,11 @@ export default function DashboardPage() {
               {todaysPlan.tasks.map((task: DailyTask, index: number) => (
                 <div
                   key={index}
-                  className="border border-gray-200 rounded-lg p-4 hover:border-blue-300 transition-colors"
+                  className="border border-gray-200 rounded-lg p-6 hover:border-blue-300 transition-colors"
                 >
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <h4 className="font-semibold text-lg">{task.subject}</h4>
+                      <h4 className="font-semibold text-xl">{task.subject}</h4>
                       <p className="text-gray-600">{task.topic}</p>
                     </div>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium ${
