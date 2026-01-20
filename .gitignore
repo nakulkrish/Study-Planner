@@ -5,6 +5,7 @@
 /.pnp
 .pnp.*
 .yarn/*
+.yarn/install-state.gz
 !.yarn/patches
 !.yarn/plugins
 !.yarn/releases
@@ -32,6 +33,20 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env*.local
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# python env files
+python/.env
+python/venv/
+python/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
 
 # vercel
 .vercel
